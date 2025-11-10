@@ -30,7 +30,7 @@
       bottom: 0;
       width: 100%;
       height: 75%;
-      background-color: #444;
+      background-color: #555;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -51,6 +51,7 @@
       display: flex;
       align-items: center;
       gap: 15px;
+      z-index: 10;
     }
 
     .control-btn {
@@ -97,28 +98,29 @@
     let dots = [];
     let counter = 0;
 
+    // Handle canvas sizing properly
     function resizeCanvas() {
       const rect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      ctx.scale(dpr, dpr);
+      const scale = window.devicePixelRatio || 1;
+      canvas.width = rect.width * scale;
+      canvas.height = rect.height * scale;
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      setupMaze();
       drawMaze();
     }
 
     window.addEventListener('resize', resizeCanvas);
     window.addEventListener('load', () => {
       resizeCanvas();
-      setupMaze();
       drawMaze();
       animate();
     });
 
     function setupMaze() {
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
+      const w = canvas.width / (window.devicePixelRatio || 1);
+      const h = canvas.height / (window.devicePixelRatio || 1);
       const cols = 5;
-      const rows = 5;
+      const rows = 4;
       const cellW = w / (cols + 1);
       const cellH = h / (rows + 1);
 
@@ -126,7 +128,7 @@
       // Start node (top-left)
       nodes.push({ x: cellW, y: cellH });
 
-      // Interior grid nodes
+      // Grid of internal nodes
       for (let i = 1; i < cols; i++) {
         for (let j = 1; j < rows; j++) {
           nodes.push({ x: (i + 0.5) * cellW, y: (j + 0.5) * cellH });
@@ -139,19 +141,17 @@
     }
 
     function drawMaze() {
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
+      const w = canvas.width / (window.devicePixelRatio || 1);
+      const h = canvas.height / (window.devicePixelRatio || 1);
       ctx.clearRect(0, 0, w, h);
-
       ctx.strokeStyle = 'white';
-      ctx.lineWidth = 4;
+      ctx.lineWidth = 3;
 
-      // Connect every node to every other node (fully connected)
+      // Connect every node to every other node with orthogonal lines
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const a = nodes[i];
           const b = nodes[j];
-          // Draw orthogonal (right-angled) connections
           ctx.beginPath();
           ctx.moveTo(a.x, a.y);
           ctx.lineTo(b.x, a.y);
@@ -160,29 +160,26 @@
         }
       }
 
-      // Draw nodes (small white circles)
-      for (let i = 0; i < nodes.length; i++) {
-        const n = nodes[i];
+      // Draw nodes
+      for (const n of nodes) {
         ctx.beginPath();
-        const r = 5;
-        ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+        ctx.arc(n.x, n.y, 4, 0, Math.PI * 2);
         ctx.fillStyle = 'white';
         ctx.fill();
       }
 
-      // Draw endpoints as large square cavities
+      // Draw square endpoints
       const end1 = nodes[nodes.length - 2];
       const end2 = nodes[nodes.length - 1];
-      const size = 30;
+      const s = 30;
       ctx.fillStyle = 'white';
-      ctx.fillRect(end1.x - size / 2, end1.y - size / 2, size, size);
-      ctx.fillRect(end2.x - size / 2, end2.y - size / 2, size, size);
+      ctx.fillRect(end1.x - s / 2, end1.y - s / 2, s, s);
+      ctx.fillRect(end2.x - s / 2, end2.y - s / 2, s, s);
     }
 
     function randomPath(startIndex, endIndex) {
-      // Return a random permutation of nodes between start and end
       const internal = nodes.slice(1, nodes.length - 2);
-      const shuffled = internal.sort(() => Math.random() - 0.5).slice(0, 5);
+      const shuffled = [...internal].sort(() => Math.random() - 0.5).slice(0, 5);
       return [nodes[startIndex], ...shuffled, nodes[endIndex]];
     }
 
@@ -194,7 +191,7 @@
       dots.push({
         path,
         progress: 0,
-        speed: 0.005 + Math.random() * 0.004,
+        speed: 0.007 + Math.random() * 0.003,
         forward: true
       });
     }
@@ -202,19 +199,17 @@
     btn.addEventListener('click', addDot);
 
     function animate() {
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
+      const w = canvas.width / (window.devicePixelRatio || 1);
+      const h = canvas.height / (window.devicePixelRatio || 1);
       ctx.clearRect(0, 0, w, h);
       drawMaze();
 
-      // Animate each dot
       for (const dot of dots) {
         const segCount = dot.path.length - 1;
-        const totalLength = segCount;
         dot.progress += dot.speed * (dot.forward ? 1 : -1);
 
-        if (dot.progress >= totalLength) {
-          dot.progress = totalLength;
+        if (dot.progress >= segCount) {
+          dot.progress = segCount;
           dot.forward = false;
           counter++;
           counterEl.textContent = counter;
@@ -227,19 +222,17 @@
         const t = dot.progress - seg;
         const start = dot.path[seg];
         const end = dot.path[Math.min(seg + 1, segCount)];
-
-        // Interpolate along right-angled route
         const mid = { x: end.x, y: start.y };
-        const halfway = Math.abs(end.x - start.x) /
-                        (Math.abs(end.x - start.x) + Math.abs(end.y - start.y));
+        const totalDist = Math.abs(end.x - start.x) + Math.abs(end.y - start.y);
+        const horizFraction = Math.abs(end.x - start.x) / totalDist;
 
         let x, y;
-        if (t < halfway) {
-          const tt = t / halfway;
+        if (t < horizFraction) {
+          const tt = t / horizFraction;
           x = start.x + (mid.x - start.x) * tt;
           y = start.y;
         } else {
-          const tt = (t - halfway) / (1 - halfway);
+          const tt = (t - horizFraction) / (1 - horizFraction);
           x = mid.x;
           y = start.y + (end.y - start.y) * tt;
         }
