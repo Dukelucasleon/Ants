@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simple Background Game</title>
+  <style>
+    /* Reset default margins */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      background-color: #333; /* fallback for top area */
+    }
+
+    .game-screen {
+      position: relative;
+      height: 100%;
+      width: 100%;
+    }
+
+    .black-section {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      height: 75%; /* bottom 3/4 of screen */
+      background-color: black;
+    }
+  </style>
+</head>
+<body>
+  <div class="game-screen">
+    <div class="black-section"></div>
+  </div>
+</body>
+</html>
