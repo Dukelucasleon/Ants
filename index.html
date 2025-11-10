@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Orthogonal Maze Game</title>
+  <title>Multi-Dot Maze Game</title>
   <style>
     * {
       margin: 0;
@@ -15,7 +15,7 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background-color: white; /* top area (inverse of black) */
+      background-color: white;
       font-family: sans-serif;
     }
 
@@ -25,12 +25,12 @@
       height: 100%;
     }
 
-    .black-section {
+    .gray-section {
       position: absolute;
       bottom: 0;
       width: 100%;
       height: 75%;
-      background-color: black;
+      background-color: #444;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -44,10 +44,16 @@
       display: block;
     }
 
-    .control-btn {
+    .ui {
       position: absolute;
       top: 20px;
       right: 20px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .control-btn {
       width: 60px;
       height: 60px;
       border-radius: 50%;
@@ -61,12 +67,22 @@
     .control-btn:hover {
       transform: scale(1.1);
     }
+
+    .counter {
+      color: black;
+      font-size: 1.2rem;
+      font-weight: bold;
+      user-select: none;
+    }
   </style>
 </head>
 <body>
   <div class="game-screen">
-    <button class="control-btn" id="generateBtn"></button>
-    <div class="black-section">
+    <div class="ui">
+      <button class="control-btn" id="generateBtn"></button>
+      <div class="counter" id="counter">0</div>
+    </div>
+    <div class="gray-section">
       <canvas id="mazeCanvas"></canvas>
     </div>
   </div>
@@ -75,12 +91,11 @@
     const canvas = document.getElementById('mazeCanvas');
     const ctx = canvas.getContext('2d');
     const btn = document.getElementById('generateBtn');
+    const counterEl = document.getElementById('counter');
 
     let nodes = [];
-    let path = [];
-    let animationFrame = null;
-    let dotProgress = 0;
-    let dotAnimating = false;
+    let dots = [];
+    let counter = 0;
 
     function resizeCanvas() {
       const rect = canvas.getBoundingClientRect();
@@ -92,10 +107,14 @@
     }
 
     window.addEventListener('resize', resizeCanvas);
-    window.addEventListener('load', resizeCanvas);
+    window.addEventListener('load', () => {
+      resizeCanvas();
+      setupMaze();
+      drawMaze();
+      animate();
+    });
 
-    // Generate maze with right-angled nodes
-    function generateMaze() {
+    function setupMaze() {
       const w = canvas.clientWidth;
       const h = canvas.clientHeight;
       const cols = 5;
@@ -107,21 +126,16 @@
       // Start node (top-left)
       nodes.push({ x: cellW, y: cellH });
 
-      // Random middle nodes with right-angled layout
-      for (let i = 1; i < 9; i++) {
-        const col = 1 + Math.floor(Math.random() * cols);
-        const row = 1 + Math.floor(Math.random() * rows);
-        nodes.push({ x: col * cellW, y: row * cellH });
+      // Interior grid nodes
+      for (let i = 1; i < cols; i++) {
+        for (let j = 1; j < rows; j++) {
+          nodes.push({ x: (i + 0.5) * cellW, y: (j + 0.5) * cellH });
+        }
       }
 
       // Two endpoints (bottom-left & bottom-right)
       nodes.push({ x: cellW, y: h - cellH });
       nodes.push({ x: w - cellW, y: h - cellH });
-
-      // Sort roughly left-to-right for a coherent maze flow
-      nodes.sort((a, b) => a.x - b.x);
-
-      drawMaze();
     }
 
     function drawMaze() {
@@ -130,88 +144,114 @@
       ctx.clearRect(0, 0, w, h);
 
       ctx.strokeStyle = 'white';
-      ctx.lineWidth = 6;
-      ctx.lineJoin = 'round';
-      ctx.lineCap = 'round';
+      ctx.lineWidth = 4;
 
-      // Draw right-angled connections
-      ctx.beginPath();
-      ctx.moveTo(nodes[0].x, nodes[0].y);
-
-      for (let i = 1; i < nodes.length; i++) {
-        const prev = nodes[i - 1];
-        const curr = nodes[i];
-
-        // create a right angle: horizontal then vertical
-        ctx.lineTo(curr.x, prev.y);
-        ctx.lineTo(curr.x, curr.y);
+      // Connect every node to every other node (fully connected)
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const a = nodes[i];
+          const b = nodes[j];
+          // Draw orthogonal (right-angled) connections
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
       }
-      ctx.stroke();
 
-      // Draw nodes
+      // Draw nodes (small white circles)
       for (let i = 0; i < nodes.length; i++) {
         const n = nodes[i];
         ctx.beginPath();
-        const r = (i >= nodes.length - 2) ? 10 : 6;
+        const r = 5;
         ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
         ctx.fillStyle = 'white';
         ctx.fill();
       }
+
+      // Draw endpoints as large square cavities
+      const end1 = nodes[nodes.length - 2];
+      const end2 = nodes[nodes.length - 1];
+      const size = 30;
+      ctx.fillStyle = 'white';
+      ctx.fillRect(end1.x - size / 2, end1.y - size / 2, size, size);
+      ctx.fillRect(end2.x - size / 2, end2.y - size / 2, size, size);
     }
 
-    function generatePath() {
-      // Choose one of two endpoints randomly
-      const endIndex = nodes.length - (Math.random() < 0.5 ? 2 : 1);
-      path = [];
-      for (let i = 0; i <= endIndex; i++) {
-        path.push(nodes[i]);
-      }
+    function randomPath(startIndex, endIndex) {
+      // Return a random permutation of nodes between start and end
+      const internal = nodes.slice(1, nodes.length - 2);
+      const shuffled = internal.sort(() => Math.random() - 0.5).slice(0, 5);
+      return [nodes[startIndex], ...shuffled, nodes[endIndex]];
     }
 
-    function animateDot() {
-      if (!path.length || dotAnimating) return;
+    function addDot() {
+      const endChoice = Math.random() < 0.5
+        ? nodes.length - 2
+        : nodes.length - 1;
+      const path = randomPath(0, endChoice);
+      dots.push({
+        path,
+        progress: 0,
+        speed: 0.005 + Math.random() * 0.004,
+        forward: true
+      });
+    }
 
-      dotAnimating = true;
-      dotProgress = 0;
-      const totalSegments = path.length - 1;
-      const speed = 0.01; // adjust for smoother/faster animation
+    btn.addEventListener('click', addDot);
 
-      function step() {
-        const segmentIndex = Math.floor(dotProgress);
-        const t = dotProgress - segmentIndex;
+    function animate() {
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      ctx.clearRect(0, 0, w, h);
+      drawMaze();
 
-        if (segmentIndex >= totalSegments) {
-          dotAnimating = false;
-          cancelAnimationFrame(animationFrame);
-          return;
+      // Animate each dot
+      for (const dot of dots) {
+        const segCount = dot.path.length - 1;
+        const totalLength = segCount;
+        dot.progress += dot.speed * (dot.forward ? 1 : -1);
+
+        if (dot.progress >= totalLength) {
+          dot.progress = totalLength;
+          dot.forward = false;
+          counter++;
+          counterEl.textContent = counter;
+        } else if (dot.progress <= 0) {
+          dot.progress = 0;
+          dot.forward = true;
         }
 
-        const start = path[segmentIndex];
-        const end = path[segmentIndex + 1];
+        const seg = Math.floor(dot.progress);
+        const t = dot.progress - seg;
+        const start = dot.path[seg];
+        const end = dot.path[Math.min(seg + 1, segCount)];
 
-        const x = start.x + (end.x - start.x) * t;
-        const y = start.y + (end.y - start.y) * t;
+        // Interpolate along right-angled route
+        const mid = { x: end.x, y: start.y };
+        const halfway = Math.abs(end.x - start.x) /
+                        (Math.abs(end.x - start.x) + Math.abs(end.y - start.y));
 
-        drawMaze();
+        let x, y;
+        if (t < halfway) {
+          const tt = t / halfway;
+          x = start.x + (mid.x - start.x) * tt;
+          y = start.y;
+        } else {
+          const tt = (t - halfway) / (1 - halfway);
+          x = mid.x;
+          y = start.y + (end.y - start.y) * tt;
+        }
 
-        // Draw moving dot
         ctx.beginPath();
-        ctx.arc(x, y, 8, 0, Math.PI * 2);
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
         ctx.fillStyle = 'black';
         ctx.fill();
-
-        dotProgress += speed;
-        animationFrame = requestAnimationFrame(step);
       }
 
-      animationFrame = requestAnimationFrame(step);
+      requestAnimationFrame(animate);
     }
-
-    btn.addEventListener('click', () => {
-      generateMaze();
-      generatePath();
-      animateDot();
-    });
   </script>
 </body>
 </html>
