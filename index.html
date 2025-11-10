@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Multi-Dot Maze Game</title>
+  <title>Expanding Multi-Dot Maze</title>
   <style>
     * {
       margin: 0;
@@ -39,34 +39,27 @@
     canvas {
       width: 90vw;
       height: 65vh;
-      max-width: 1000px;
-      max-height: 700px;
+      max-width: 1200px;
+      max-height: 800px;
       display: block;
     }
 
     .ui {
       position: absolute;
       top: 20px;
+      left: 20px;
       right: 20px;
       display: flex;
+      justify-content: space-between;
       align-items: center;
-      gap: 15px;
       z-index: 10;
     }
 
-    .control-btn {
-      width: 60px;
-      height: 60px;
-      border-radius: 50%;
-      background-color: white;
-      border: 2px solid black;
-      cursor: pointer;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-      transition: 0.2s;
-    }
-
-    .control-btn:hover {
-      transform: scale(1.1);
+    .counters {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      pointer-events: none;
     }
 
     .counter {
@@ -75,14 +68,35 @@
       font-weight: bold;
       user-select: none;
     }
+
+    .control-btn {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      background-color: white;
+      border: 2px solid black;
+      cursor: pointer;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      transition: 0.2s;
+      z-index: 10;
+    }
+
+    .control-btn:hover {
+      transform: translateX(-50%) scale(1.1);
+    }
   </style>
 </head>
 <body>
   <div class="game-screen">
     <div class="ui">
-      <button class="control-btn" id="generateBtn"></button>
-      <div class="counter" id="counter">0</div>
+      <div class="counter" id="leftCounter">Left: 0</div>
+      <div class="counter" id="rightCounter">Right: 0</div>
     </div>
+    <button class="control-btn" id="generateBtn"></button>
     <div class="gray-section">
       <canvas id="mazeCanvas"></canvas>
     </div>
@@ -92,13 +106,15 @@
     const canvas = document.getElementById('mazeCanvas');
     const ctx = canvas.getContext('2d');
     const btn = document.getElementById('generateBtn');
-    const counterEl = document.getElementById('counter');
+    const leftCounterEl = document.getElementById('leftCounter');
+    const rightCounterEl = document.getElementById('rightCounter');
 
     let nodes = [];
     let dots = [];
-    let counter = 0;
+    let leftCount = 0;
+    let rightCount = 0;
 
-    // Handle canvas sizing properly
+    // Proper canvas sizing
     function resizeCanvas() {
       const rect = canvas.getBoundingClientRect();
       const scale = window.devicePixelRatio || 1;
@@ -116,46 +132,57 @@
       animate();
     });
 
+    // Create maze with random number of nodes (5-15)
     function setupMaze() {
       const w = canvas.width / (window.devicePixelRatio || 1);
       const h = canvas.height / (window.devicePixelRatio || 1);
-      const cols = 5;
-      const rows = 4;
-      const cellW = w / (cols + 1);
-      const cellH = h / (rows + 1);
+      const nodeCount = 5 + Math.floor(Math.random() * 11);
 
       nodes = [];
-      // Start node (top-left)
-      nodes.push({ x: cellW, y: cellH });
 
-      // Grid of internal nodes
-      for (let i = 1; i < cols; i++) {
-        for (let j = 1; j < rows; j++) {
-          nodes.push({ x: (i + 0.5) * cellW, y: (j + 0.5) * cellH });
-        }
+      // Starting point: top-left where white meets gray
+      nodes.push({ x: 50, y: 0 });
+
+      // Random nodes across the gray area
+      for (let i = 0; i < nodeCount; i++) {
+        nodes.push({
+          x: 100 + Math.random() * (w - 200),
+          y: 60 + Math.random() * (h - 160)
+        });
       }
 
       // Two endpoints (bottom-left & bottom-right)
-      nodes.push({ x: cellW, y: h - cellH });
-      nodes.push({ x: w - cellW, y: h - cellH });
+      nodes.push({ x: 80, y: h - 60 }); // left end
+      nodes.push({ x: w - 80, y: h - 60 }); // right end
     }
 
+    // Draw the maze
     function drawMaze() {
       const w = canvas.width / (window.devicePixelRatio || 1);
       const h = canvas.height / (window.devicePixelRatio || 1);
       ctx.clearRect(0, 0, w, h);
+
       ctx.strokeStyle = 'white';
       ctx.lineWidth = 3;
 
-      // Connect every node to every other node with orthogonal lines
+      // Connect every node to every other node (at 45 or 90 degree angles)
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const a = nodes[i];
           const b = nodes[j];
+
           ctx.beginPath();
           ctx.moveTo(a.x, a.y);
-          ctx.lineTo(b.x, a.y);
-          ctx.lineTo(b.x, b.y);
+
+          // Randomly choose 45° or 90° path style
+          if (Math.random() < 0.5) {
+            // 90° orthogonal path
+            ctx.lineTo(b.x, a.y);
+            ctx.lineTo(b.x, b.y);
+          } else {
+            // 45° diagonal path
+            ctx.lineTo(b.x, b.y);
+          }
           ctx.stroke();
         }
       }
@@ -163,36 +190,37 @@
       // Draw nodes
       for (const n of nodes) {
         ctx.beginPath();
-        ctx.arc(n.x, n.y, 4, 0, Math.PI * 2);
+        ctx.arc(n.x, n.y, 5, 0, Math.PI * 2);
         ctx.fillStyle = 'white';
         ctx.fill();
       }
 
-      // Draw square endpoints
+      // Large white square endpoints
       const end1 = nodes[nodes.length - 2];
       const end2 = nodes[nodes.length - 1];
-      const s = 30;
+      const s = 60;
       ctx.fillStyle = 'white';
       ctx.fillRect(end1.x - s / 2, end1.y - s / 2, s, s);
       ctx.fillRect(end2.x - s / 2, end2.y - s / 2, s, s);
     }
 
     function randomPath(startIndex, endIndex) {
+      // random subset of nodes (to keep path short)
       const internal = nodes.slice(1, nodes.length - 2);
-      const shuffled = [...internal].sort(() => Math.random() - 0.5).slice(0, 5);
+      const shuffled = [...internal].sort(() => Math.random() - 0.5).slice(0, 5 + Math.floor(Math.random() * 5));
       return [nodes[startIndex], ...shuffled, nodes[endIndex]];
     }
 
     function addDot() {
-      const endChoice = Math.random() < 0.5
-        ? nodes.length - 2
-        : nodes.length - 1;
-      const path = randomPath(0, endChoice);
+      const goLeft = Math.random() < 0.5;
+      const endIndex = goLeft ? nodes.length - 2 : nodes.length - 1;
+      const path = randomPath(0, endIndex);
       dots.push({
         path,
         progress: 0,
-        speed: 0.007 + Math.random() * 0.003,
-        forward: true
+        speed: 0.006 + Math.random() * 0.004,
+        forward: true,
+        goLeft
       });
     }
 
@@ -211,8 +239,8 @@
         if (dot.progress >= segCount) {
           dot.progress = segCount;
           dot.forward = false;
-          counter++;
-          counterEl.textContent = counter;
+          if (dot.goLeft) leftCounterEl.textContent = `Left: ${++leftCount}`;
+          else rightCounterEl.textContent = `Right: ${++rightCount}`;
         } else if (dot.progress <= 0) {
           dot.progress = 0;
           dot.forward = true;
@@ -222,23 +250,12 @@
         const t = dot.progress - seg;
         const start = dot.path[seg];
         const end = dot.path[Math.min(seg + 1, segCount)];
-        const mid = { x: end.x, y: start.y };
-        const totalDist = Math.abs(end.x - start.x) + Math.abs(end.y - start.y);
-        const horizFraction = Math.abs(end.x - start.x) / totalDist;
 
-        let x, y;
-        if (t < horizFraction) {
-          const tt = t / horizFraction;
-          x = start.x + (mid.x - start.x) * tt;
-          y = start.y;
-        } else {
-          const tt = (t - horizFraction) / (1 - horizFraction);
-          x = mid.x;
-          y = start.y + (end.y - start.y) * tt;
-        }
+        let x = start.x + (end.x - start.x) * t;
+        let y = start.y + (end.y - start.y) * t;
 
         ctx.beginPath();
-        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.arc(x, y, 7, 0, Math.PI * 2);
         ctx.fillStyle = 'black';
         ctx.fill();
       }
