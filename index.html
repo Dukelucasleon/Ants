@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Expanding Multi-Dot Maze</title>
+  <title>Color Maze Game</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -99,12 +99,11 @@
     const rightCounterEl = document.getElementById('rightCounter');
 
     let nodes = [];
-    let connections = []; // store line segments so they don't randomize each frame
+    let connections = [];
     let dots = [];
     let leftCount = 0;
     let rightCount = 0;
 
-    // Resize canvas properly
     function resizeCanvas() {
       const rect = canvas.getBoundingClientRect();
       const scale = window.devicePixelRatio || 1;
@@ -121,29 +120,29 @@
       animate();
     });
 
-    // Create maze once
+    // Build maze with spaced-out nodes
     function setupMaze() {
       const w = canvas.width / (window.devicePixelRatio || 1);
       const h = canvas.height / (window.devicePixelRatio || 1);
       const nodeCount = 5 + Math.floor(Math.random() * 11);
       nodes = [];
 
-      // Start point - top left edge
-      nodes.push({ x: 50, y: 0 });
+      // Start point (top-left edge)
+      nodes.push({ x: 60, y: 0 });
 
-      // Random internal nodes
+      // Random internal nodes (spread out)
       for (let i = 0; i < nodeCount; i++) {
         nodes.push({
-          x: 100 + Math.random() * (w - 200),
-          y: 80 + Math.random() * (h - 200)
+          x: 150 + Math.random() * (w - 300),
+          y: 120 + Math.random() * (h - 240)
         });
       }
 
       // Two large endpoints
-      nodes.push({ x: 100, y: h - 80 }); // left
-      nodes.push({ x: w - 100, y: h - 80 }); // right
+      nodes.push({ x: 120, y: h - 100 }); // left
+      nodes.push({ x: w - 120, y: h - 100 }); // right
 
-      // Precompute all connection lines (45° or 90°)
+      // Precompute static connections
       connections = [];
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
@@ -155,14 +154,14 @@
       }
     }
 
+    // Draw maze (static)
     function drawMaze() {
       const w = canvas.width / (window.devicePixelRatio || 1);
       const h = canvas.height / (window.devicePixelRatio || 1);
       ctx.clearRect(0, 0, w, h);
       ctx.strokeStyle = 'white';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 5; // thicker lines
 
-      // Draw fixed precomputed connections
       for (const c of connections) {
         ctx.beginPath();
         ctx.moveTo(c.a.x, c.a.y);
@@ -175,38 +174,45 @@
         ctx.stroke();
       }
 
-      // Draw small circular nodes
       for (const n of nodes) {
         ctx.beginPath();
-        ctx.arc(n.x, n.y, 5, 0, Math.PI * 2);
+        ctx.arc(n.x, n.y, 6, 0, Math.PI * 2);
         ctx.fillStyle = 'white';
         ctx.fill();
       }
 
-      // Draw big square endpoints
+      // Big endpoints
       const end1 = nodes[nodes.length - 2];
       const end2 = nodes[nodes.length - 1];
-      const s = 80;
+      const s = 100;
       ctx.fillStyle = 'white';
       ctx.fillRect(end1.x - s / 2, end1.y - s / 2, s, s);
       ctx.fillRect(end2.x - s / 2, end2.y - s / 2, s, s);
     }
 
+    // Generate a random route
     function randomPath(startIndex, endIndex) {
-      // pick some random waypoints to give variety
       const internal = nodes.slice(1, nodes.length - 2);
       const shuffled = [...internal].sort(() => Math.random() - 0.5).slice(0, 5 + Math.floor(Math.random() * 5));
       return [nodes[startIndex], ...shuffled, nodes[endIndex]];
     }
 
+    // Add new moving dot
     function addDot() {
       const goLeft = Math.random() < 0.5;
       const endIndex = goLeft ? nodes.length - 2 : nodes.length - 1;
       const path = randomPath(0, endIndex);
+      const segCount = path.length - 1;
+
+      // Random speed (2–5 seconds per segment)
+      const minTime = 2000, maxTime = 5000;
+      const time = minTime + Math.random() * (maxTime - minTime);
+      const speed = 1 / (time / 16); // assuming ~60fps
+
       dots.push({
         path,
         progress: 0,
-        speed: 0.005 + Math.random() * 0.004,
+        speed,
         forward: true,
         goLeft
       });
@@ -214,6 +220,7 @@
 
     btn.addEventListener('click', addDot);
 
+    // Animate the maze and dots
     function animate() {
       const w = canvas.width / (window.devicePixelRatio || 1);
       const h = canvas.height / (window.devicePixelRatio || 1);
@@ -221,7 +228,6 @@
       ctx.clearRect(0, 0, w, h);
       drawMaze();
 
-      // Move and draw dots
       for (const dot of dots) {
         const segCount = dot.path.length - 1;
         dot.progress += dot.speed * (dot.forward ? 1 : -1);
@@ -241,13 +247,16 @@
         const start = dot.path[seg];
         const end = dot.path[Math.min(seg + 1, segCount)];
 
-        // Smooth interpolation
-        let x = start.x + (end.x - start.x) * t;
-        let y = start.y + (end.y - start.y) * t;
+        const x = start.x + (end.x - start.x) * t;
+        const y = start.y + (end.y - start.y) * t;
 
         ctx.beginPath();
-        ctx.arc(x, y, 7, 0, Math.PI * 2);
-        ctx.fillStyle = 'black';
+        ctx.arc(x, y, 8, 0, Math.PI * 2);
+        if (dot.forward) {
+          ctx.fillStyle = dot.goLeft ? 'red' : 'blue';
+        } else {
+          ctx.fillStyle = 'black';
+        }
         ctx.fill();
       }
 
