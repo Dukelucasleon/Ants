@@ -5,11 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Expanding Multi-Dot Maze</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     html, body {
       width: 100%;
@@ -53,13 +49,6 @@
       justify-content: space-between;
       align-items: center;
       z-index: 10;
-    }
-
-    .counters {
-      display: flex;
-      justify-content: space-between;
-      width: 100%;
-      pointer-events: none;
     }
 
     .counter {
@@ -110,11 +99,12 @@
     const rightCounterEl = document.getElementById('rightCounter');
 
     let nodes = [];
+    let connections = []; // store line segments so they don't randomize each frame
     let dots = [];
     let leftCount = 0;
     let rightCount = 0;
 
-    // Proper canvas sizing
+    // Resize canvas properly
     function resizeCanvas() {
       const rect = canvas.getBoundingClientRect();
       const scale = window.devicePixelRatio || 1;
@@ -128,66 +118,64 @@
     window.addEventListener('resize', resizeCanvas);
     window.addEventListener('load', () => {
       resizeCanvas();
-      drawMaze();
       animate();
     });
 
-    // Create maze with random number of nodes (5-15)
+    // Create maze once
     function setupMaze() {
       const w = canvas.width / (window.devicePixelRatio || 1);
       const h = canvas.height / (window.devicePixelRatio || 1);
       const nodeCount = 5 + Math.floor(Math.random() * 11);
-
       nodes = [];
 
-      // Starting point: top-left where white meets gray
+      // Start point - top left edge
       nodes.push({ x: 50, y: 0 });
 
-      // Random nodes across the gray area
+      // Random internal nodes
       for (let i = 0; i < nodeCount; i++) {
         nodes.push({
           x: 100 + Math.random() * (w - 200),
-          y: 60 + Math.random() * (h - 160)
+          y: 80 + Math.random() * (h - 200)
         });
       }
 
-      // Two endpoints (bottom-left & bottom-right)
-      nodes.push({ x: 80, y: h - 60 }); // left end
-      nodes.push({ x: w - 80, y: h - 60 }); // right end
-    }
+      // Two large endpoints
+      nodes.push({ x: 100, y: h - 80 }); // left
+      nodes.push({ x: w - 100, y: h - 80 }); // right
 
-    // Draw the maze
-    function drawMaze() {
-      const w = canvas.width / (window.devicePixelRatio || 1);
-      const h = canvas.height / (window.devicePixelRatio || 1);
-      ctx.clearRect(0, 0, w, h);
-
-      ctx.strokeStyle = 'white';
-      ctx.lineWidth = 3;
-
-      // Connect every node to every other node (at 45 or 90 degree angles)
+      // Precompute all connection lines (45° or 90°)
+      connections = [];
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const a = nodes[i];
           const b = nodes[j];
-
-          ctx.beginPath();
-          ctx.moveTo(a.x, a.y);
-
-          // Randomly choose 45° or 90° path style
-          if (Math.random() < 0.5) {
-            // 90° orthogonal path
-            ctx.lineTo(b.x, a.y);
-            ctx.lineTo(b.x, b.y);
-          } else {
-            // 45° diagonal path
-            ctx.lineTo(b.x, b.y);
-          }
-          ctx.stroke();
+          const type = Math.random() < 0.5 ? 'ortho' : 'diag';
+          connections.push({ a, b, type });
         }
       }
+    }
 
-      // Draw nodes
+    function drawMaze() {
+      const w = canvas.width / (window.devicePixelRatio || 1);
+      const h = canvas.height / (window.devicePixelRatio || 1);
+      ctx.clearRect(0, 0, w, h);
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 3;
+
+      // Draw fixed precomputed connections
+      for (const c of connections) {
+        ctx.beginPath();
+        ctx.moveTo(c.a.x, c.a.y);
+        if (c.type === 'ortho') {
+          ctx.lineTo(c.b.x, c.a.y);
+          ctx.lineTo(c.b.x, c.b.y);
+        } else {
+          ctx.lineTo(c.b.x, c.b.y);
+        }
+        ctx.stroke();
+      }
+
+      // Draw small circular nodes
       for (const n of nodes) {
         ctx.beginPath();
         ctx.arc(n.x, n.y, 5, 0, Math.PI * 2);
@@ -195,17 +183,17 @@
         ctx.fill();
       }
 
-      // Large white square endpoints
+      // Draw big square endpoints
       const end1 = nodes[nodes.length - 2];
       const end2 = nodes[nodes.length - 1];
-      const s = 60;
+      const s = 80;
       ctx.fillStyle = 'white';
       ctx.fillRect(end1.x - s / 2, end1.y - s / 2, s, s);
       ctx.fillRect(end2.x - s / 2, end2.y - s / 2, s, s);
     }
 
     function randomPath(startIndex, endIndex) {
-      // random subset of nodes (to keep path short)
+      // pick some random waypoints to give variety
       const internal = nodes.slice(1, nodes.length - 2);
       const shuffled = [...internal].sort(() => Math.random() - 0.5).slice(0, 5 + Math.floor(Math.random() * 5));
       return [nodes[startIndex], ...shuffled, nodes[endIndex]];
@@ -218,7 +206,7 @@
       dots.push({
         path,
         progress: 0,
-        speed: 0.006 + Math.random() * 0.004,
+        speed: 0.005 + Math.random() * 0.004,
         forward: true,
         goLeft
       });
@@ -229,9 +217,11 @@
     function animate() {
       const w = canvas.width / (window.devicePixelRatio || 1);
       const h = canvas.height / (window.devicePixelRatio || 1);
+
       ctx.clearRect(0, 0, w, h);
       drawMaze();
 
+      // Move and draw dots
       for (const dot of dots) {
         const segCount = dot.path.length - 1;
         dot.progress += dot.speed * (dot.forward ? 1 : -1);
@@ -251,6 +241,7 @@
         const start = dot.path[seg];
         const end = dot.path[Math.min(seg + 1, segCount)];
 
+        // Smooth interpolation
         let x = start.x + (end.x - start.x) * t;
         let y = start.y + (end.y - start.y) * t;
 
