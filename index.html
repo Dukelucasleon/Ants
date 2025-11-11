@@ -3,32 +3,26 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Satisfying Maze Game</title>
+<title>Color Maze Fill Game</title>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; }
-html,body { width:100%; height:100%; background:white; font-family:'Comic Sans MS', cursive, sans-serif; }
-.game-screen { position:relative; width:100%; height:100%; }
-.gray-section { position:absolute; bottom:0; width:100%; height:75%; background:#555; display:flex; justify-content:center; align-items:center; }
-canvas { width:90vw; height:65vh; max-width:1200px; max-height:800px; display:block; }
-.ui { position:absolute; top:20px; left:20px; right:20px; display:flex; justify-content:space-between; align-items:center; z-index:10; font-weight:bold; font-size:1.5rem; }
-.counter { user-select:none; }
-#leftCounter { color:red; }
-#rightCounter { color:blue; }
-.control-btn, #resetBtn { width:70px; height:70px; border-radius:50%; border:2px solid black; cursor:pointer; box-shadow:0 4px 8px rgba(0,0,0,0.3); transition:0.2s; }
-.control-btn { background:white; position:absolute; top:20px; left:50%; transform:translateX(-50%); }
-.control-btn:hover { transform:translateX(-50%) scale(1.1); }
-#resetBtn { background:black; color:white; position:absolute; top:100px; left:50%; transform:translateX(-50%); font-size:0.9rem; }
-#resetBtn:hover { transform:translateX(-50%) scale(1.05); }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background-color: white; font-family: sans-serif; }
+.game-screen { position: relative; width: 100%; height: 100%; }
+.gray-section { position: absolute; bottom: 0; width: 100%; height: 75%; background-color: #555; display: flex; justify-content: center; align-items: center; }
+canvas { width: 90vw; height: 65vh; max-width: 1200px; max-height: 800px; display: block; }
+.ui { position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; align-items: center; z-index: 10; }
+.counter { color: black; font-size: 1.1rem; font-weight: bold; user-select: none; }
+.control-btn { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 70px; height: 70px; border-radius: 50%; background-color: white; border: 2px solid black; cursor: pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.3); z-index: 10; transition: 0.2s; }
+.control-btn:hover { transform: translateX(-50%) scale(1.1); }
 </style>
 </head>
 <body>
 <div class="game-screen">
   <div class="ui">
-    <div id="leftCounter" class="counter">0%</div>
-    <div id="rightCounter" class="counter">0%</div>
+    <div class="counter" id="leftCounter">Left: 0%</div>
+    <div class="counter" id="rightCounter">Right: 0%</div>
   </div>
   <button class="control-btn" id="generateBtn"></button>
-  <button id="resetBtn">RESET</button>
   <div class="gray-section">
     <canvas id="mazeCanvas"></canvas>
   </div>
@@ -37,66 +31,63 @@ canvas { width:90vw; height:65vh; max-width:1200px; max-height:800px; display:bl
 <script>
 const canvas = document.getElementById("mazeCanvas");
 const ctx = canvas.getContext("2d");
-const generateBtn = document.getElementById("generateBtn");
-const resetBtn = document.getElementById("resetBtn");
+const btn = document.getElementById("generateBtn");
 const leftCounterEl = document.getElementById("leftCounter");
 const rightCounterEl = document.getElementById("rightCounter");
 
-let nodes=[], connections=[], adjacency=new Map(), dots=[], end1, end2, squareSize;
-let leftTrips=0, rightTrips=0;
-const maxTrips=500; // trips needed to reach 100%
-const minTime=910, maxTime=2310; // 30% slower
-const explosions=[];
+let nodes = [];
+let connections = [];
+let adjacency = new Map();
+let dots = [];
+let end1, end2, squareSize;
+let leftTrips = 0;
+let rightTrips = 0;
+const maxTrips = 500; // trips needed to reach 100%
+const minTime = 1300;
+const maxTime = 3300;
 
-function resizeCanvas(){
+function resizeCanvas() {
   const rect = canvas.getBoundingClientRect();
-  const scale = window.devicePixelRatio||1;
-  canvas.width = rect.width*scale;
-  canvas.height = rect.height*scale;
+  const scale = window.devicePixelRatio || 1;
+  canvas.width = rect.width * scale;
+  canvas.height = rect.height * scale;
   ctx.setTransform(scale,0,0,scale,0,0);
   setupMaze();
 }
 
 window.addEventListener("resize", resizeCanvas);
-window.addEventListener("load", ()=>{ resizeCanvas(); animate(); });
+window.addEventListener("load", () => { resizeCanvas(); animate(); });
 
-function setupMaze(){
+function setupMaze() {
   const w = canvas.width/(window.devicePixelRatio||1);
   const h = canvas.height/(window.devicePixelRatio||1);
-
+  const nodeCount = 5 + Math.floor(Math.random()*11);
   nodes = [];
-  connections = [];
   adjacency.clear();
-  dots = [];
-  leftTrips=0; rightTrips=0;
+  connections = [];
 
-  const nodeCount = 5+Math.floor(Math.random()*11);
-
-  nodes.push({x:60,y:0}); // start top-left
+  nodes.push({x: 60, y:0}); // start top-left
 
   for(let i=0;i<nodeCount;i++){
-    nodes.push({ x:150+Math.random()*(w-300), y:120+Math.random()*(h-240) });
+    nodes.push({ x: 150 + Math.random()*(w-300), y: 120 + Math.random()*(h-240) });
   }
 
-  nodes.push({x:120,y:h-100}); // left red
-  nodes.push({x:w-120,y:h-100}); // right blue
+  nodes.push({x:120, y:h-100}); // red left endpoint
+  nodes.push({x:w-120, y:h-100}); // blue right endpoint
   end1 = nodes[nodes.length-2];
   end2 = nodes[nodes.length-1];
   squareSize = 200;
 
-  for(let i=0;i<nodes.length;i++) adjacency.set(i,[]);
-
+  for(let i=0;i<nodes.length;i++) adjacency.set(i, []);
   for(let i=0;i<nodes.length;i++){
     for(let j=i+1;j<nodes.length;j++){
-      if(i===nodes.length-2 || i===nodes.length-1 || j===nodes.length-2 || j===nodes.length-1){
-        if( (i===nodes.length-2 && j===nodes.length-1) || (i===nodes.length-1 && j===nodes.length-2)) continue; // don't connect endpoints to each other
-      }
       const type = Math.random()<0.5?"ortho":"diag";
       connections.push({a:nodes[i], b:nodes[j], type, i, j});
       adjacency.get(i).push(j);
       adjacency.get(j).push(i);
     }
   }
+  leftTrips=0; rightTrips=0;
 }
 
 function drawMaze(){
@@ -104,97 +95,75 @@ function drawMaze(){
   const h = canvas.height/(window.devicePixelRatio||1);
   ctx.clearRect(0,0,w,h);
 
-  // connections
-  ctx.strokeStyle="white"; ctx.lineWidth=10;
-  connections.forEach(c=>{
+  // draw connections
+  ctx.strokeStyle="white"; ctx.lineWidth=8;
+  for(const c of connections){
     ctx.beginPath(); ctx.moveTo(c.a.x,c.a.y);
-    if(c.type==="ortho"){ ctx.lineTo(c.b.x,c.a.y); ctx.lineTo(c.b.x,c.b.y);}
+    if(c.type==="ortho"){ ctx.lineTo(c.b.x,c.a.y); ctx.lineTo(c.b.x,c.b.y); }
     else ctx.lineTo(c.b.x,c.b.y);
     ctx.stroke();
-  });
+  }
 
   // nodes
-  nodes.forEach(n=>{
+  for(const n of nodes){
     ctx.beginPath();
     ctx.arc(n.x,n.y,6,0,Math.PI*2);
-    ctx.fillStyle="white"; ctx.fill();
-  });
+    ctx.fillStyle="white";
+    ctx.fill();
+  }
 
-  // endpoints squares
+  // draw endpoints
   ctx.fillStyle="white";
   ctx.fillRect(end1.x-squareSize/2,end1.y-squareSize/2,squareSize,squareSize);
   ctx.fillRect(end2.x-squareSize/2,end2.y-squareSize/2,squareSize,squareSize);
 
-  // fill proportional
+  // fill red/blue proportional to trips
   const leftFill = (leftTrips/maxTrips)*squareSize;
   const rightFill = (rightTrips/maxTrips)*squareSize;
-  if(leftFill>0) ctx.fillStyle="red", ctx.fillRect(end1.x-squareSize/2,end1.y+squareSize/2-leftFill,squareSize,leftFill);
-  if(rightFill>0) ctx.fillStyle="blue", ctx.fillRect(end2.x-squareSize/2,end2.y+squareSize/2-rightFill,squareSize,rightFill);
+  if(leftFill>0){ ctx.fillStyle="red"; ctx.fillRect(end1.x-squareSize/2,end1.y+squareSize/2-leftFill,squareSize,leftFill);}
+  if(rightFill>0){ ctx.fillStyle="blue"; ctx.fillRect(end2.x-squareSize/2,end2.y+squareSize/2-rightFill,squareSize,rightFill);}
 
-  leftCounterEl.textContent=`${Math.min(100,Math.round(leftTrips/maxTrips*100))}%`;
-  rightCounterEl.textContent=`${Math.min(100,Math.round(rightTrips/maxTrips*100))}%`;
+  leftCounterEl.textContent=`Left: ${Math.min(100,Math.round(leftTrips/maxTrips*100))}%`;
+  rightCounterEl.textContent=`Right: ${Math.min(100,Math.round(rightTrips/maxTrips*100))}%`;
 }
 
-function findPathForEndpoint(startIndex,endIndex){
-  // BFS to generate a path along connections without crossing opposite endpoint
-  const queue=[[startIndex]];
+function findRandomPath(startIndex,endIndex){
+  const path=[startIndex];
   const visited=new Set([startIndex]);
-  while(queue.length>0){
-    const path=queue.shift();
-    const last=path[path.length-1];
-    if(last===endIndex) return path;
-    for(const n of adjacency.get(last)){
-      if(!visited.has(n) && n!== (endIndex===nodes.length-2?nodes.length-1:nodes.length-2)){
-        visited.add(n);
-        queue.push([...path,n]);
-      }
-    }
+  while(path[path.length-1]!==endIndex){
+    const current=path[path.length-1];
+    const neighbors=adjacency.get(current).filter(n=>!visited.has(n));
+    if(neighbors.length===0) break;
+    const next=neighbors[Math.floor(Math.random()*neighbors.length)];
+    path.push(next); visited.add(next);
+    if(path.length>15) break;
   }
-  return [startIndex,endIndex];
+  if(path[path.length-1]!==endIndex) path.push(endIndex);
+  return path.map(i=>nodes[i]);
 }
 
 function addDot(){
   const goLeft = Math.random()<0.5;
   const endIndex = goLeft?nodes.length-2:nodes.length-1;
-  const path=findPathForEndpoint(0,endIndex);
-  const time = minTime+Math.random()*(maxTime-minTime);
-  dots.push({path,progress:0,speed:1/(time/16),forward:true,goLeft, bounce:0});
+  const path=findRandomPath(0,endIndex);
+  const time = minTime + Math.random()*(maxTime-minTime);
+  const speed = (1/(time/16))*1.5;
+  dots.push({path,progress:0,speed,forward:true,goLeft});
 }
 
-generateBtn.addEventListener("click",addDot);
-
-resetBtn.addEventListener("click",()=>{
-  explosions.push({time:0});
-  setupMaze();
-});
+btn.addEventListener("click",addDot);
 
 function animate(){
   drawMaze();
 
-  // draw explosions
-  explosions.forEach((e,i)=>{
-    e.time++;
-    for(let j=0;j<50;j++){
-      const angle=Math.random()*2*Math.PI;
-      const r=Math.random()*100*e.time/20;
-      ctx.beginPath();
-      ctx.arc(canvas.width/2/(window.devicePixelRatio||1)+r*Math.cos(angle),canvas.height/4/(window.devicePixelRatio||1)+r*Math.sin(angle),3,0,Math.PI*2);
-      ctx.fillStyle=`rgba(0,150,255,${1-e.time/30})`;
-      ctx.fill();
-    }
-    if(e.time>30) explosions.splice(i,1);
-  });
-
-  // animate dots
-  dots.forEach(dot=>{
-    const segCount=dot.path.length-1;
+  for(const dot of dots){
+    const segCount = dot.path.length-1;
     dot.progress += dot.speed*(dot.forward?1:-1);
     if(dot.progress>=segCount){
       dot.progress=segCount;
       dot.forward=false;
       if(dot.goLeft) leftTrips=Math.min(maxTrips,leftTrips+1);
       else rightTrips=Math.min(maxTrips,rightTrips+1);
-      dot.bounce=8;
     } else if(dot.progress<=0){
       dot.progress=0;
       dot.forward=true;
@@ -208,11 +177,10 @@ function animate(){
     const y=start.y+(end.y-start.y)*t;
 
     ctx.beginPath();
-    ctx.arc(x,y,8+dot.bounce*Math.sin(Date.now()/150),0,Math.PI*2);
-    ctx.fillStyle=dot.forward?(dot.goLeft?"red":"blue"):"black";
+    ctx.arc(x,y,8,0,Math.PI*2);
+    ctx.fillStyle = dot.forward ? (dot.goLeft?"red":"blue") : "black";
     ctx.fill();
-    if(dot.bounce>0) dot.bounce-=0.3;
-  });
+  }
 
   requestAnimationFrame(animate);
 }
